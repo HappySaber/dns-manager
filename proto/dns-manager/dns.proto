@@ -1,31 +1,29 @@
 syntax = "proto3";
 
+package dns.v1;
+
+option go_package = "dnsmanager/gen/dns/v1;dnsv1";
+
 service DNSService {
-    rpc AddServer(AddServerRequest) returns (AddServerResponce)
-    rpc RemoveServer(RemoveServerRequest) returns (RemoveServerResponce)
-    rpc ListServers(ListServersRequest) returns (ListServersResponce)
+    rpc AddServer(AddServerRequest) returns (AddServerResponse)
+    rpc RemoveServer(RemoveServerRequest) returns (RemoveServerResponse)
+    rpc ListServers(ListServersRequest) returns (ListServersResponse)
 }
 
 message AddServerRequest{
-
+    string adresses = 1;
 }
 
-message AddServerResponce{
-
-}
+message AddServerResponse{}
 
 message RemoveServerRequest{
-    
+    string adresses = 1;
 }
 
-message RemoveServerResponce{
+message RemoveServerResponse{}
 
-}
+message ListServersRequest{}
 
-message ListServersRequest{
-
-}
-
-message ListServersResponce{
-
+message ListServersResponse{
+    repeated string adresses = 1;
 }
