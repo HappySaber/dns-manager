@@ -5,9 +5,9 @@ package dns.v1;
 option go_package = "dnsmanager/gen/dns/v1;dnsv1";
 
 service DNSService {
-    rpc AddServer(AddServerRequest) returns (AddServerResponse)
-    rpc RemoveServer(RemoveServerRequest) returns (RemoveServerResponse)
-    rpc ListServers(ListServersRequest) returns (ListServersResponse)
+    rpc AddServer(AddServerRequest) returns (AddServerResponse);
+    rpc RemoveServer(RemoveServerRequest) returns (RemoveServerResponse);
+    rpc ListServers(ListServersRequest) returns (ListServersResponse);
 }
 
 message AddServerRequest{
