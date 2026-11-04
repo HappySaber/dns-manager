@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+service DNSService {
+    rpc AddServer(AddServerRequest) returns (AddServerResponce)
+    rpc RemoveServer(RemoveServerRequest) returns (RemoveServerResponce)
+    rpc ListServers(ListServersRequest) returns (ListServersResponce)
+}
+
+message AddServerRequest{
+
+}
+
+message AddServerResponce{
+
+}
+
+message RemoveServerRequest{
+    
+}
+
+message RemoveServerResponce{
+
+}
+
+message ListServersRequest{
+
+}
+
+message ListServersResponce{
+
+}
