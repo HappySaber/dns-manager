@@ -54,3 +54,30 @@ func (f *File) Nameservers() []netip.Addr {
 	}
 	return res
 }
+
+func (f *File) SetNameservers(adrrs []netip.Addr) {
+	out := make([]line, 0, len(f.lines)+len(adrrs))
+	placed := false
+
+	for _, l := range f.lines {
+		if !l.isNS {
+			out = append(out, l)
+			continue
+		}
+		if !placed {
+			out = appendNS(out, adrrs)
+			placed = true
+		}
+	}
+	if !placed {
+		out = appendNS(out, adrrs)
+	}
+	f.lines = out
+}
+
+func appendNS(dst []line, addrs []netip.Addr) []line {
+	for _, a := range addrs {
+		dst = append(dst, line{raw: "nameserver " + a.String(), addr: a, isNS: true})
+	}
+	return dst
+}
