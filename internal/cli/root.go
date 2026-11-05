@@ -11,6 +11,6 @@ func NewRootCmd() *cobra.Command {
 		Short: "Manage DNS servers on the storage system",
 	}
 
-	root.AddCommand()
+	root.AddCommand(newListCmd(), newAddCmd(), newRemoveCmd())
 	return root
 }
