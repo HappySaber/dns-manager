@@ -44,3 +44,13 @@ func parseLine(raw string) line {
 		raw: raw,
 	}
 }
+
+func (f *File) Nameservers() []netip.Addr {
+	var res []netip.Addr
+	for _, line := range f.lines {
+		if line.isNS {
+			res = append(res, line.addr)
+		}
+	}
+	return res
+}
