@@ -1,6 +1,15 @@
 package service
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+var (
+	ErrInvalidAddress = errors.New("invalid address")
+	ErrAlreadyExists  = errors.New("server already exists")
+	ErrNotFound       = errors.New("server not found")
+)
 
 type Service struct {
 	servers []string
