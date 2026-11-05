@@ -7,7 +7,7 @@ import (
 func NewRootCmd() *cobra.Command {
 
 	root := &cobra.Command{
-		Use:   "dnscli",
+		Use:   "dns-cli",
 		Short: "Manage DNS servers on the storage system",
 	}
 

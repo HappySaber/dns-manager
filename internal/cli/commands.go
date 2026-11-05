@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 )
 
@@ -22,6 +24,7 @@ func newAddCmd() *cobra.Command {
 		Short: "Show configured DNS servers",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			fmt.Println("newaddcom")
 			return nil
 		},
 	}
@@ -29,7 +32,7 @@ func newAddCmd() *cobra.Command {
 
 func newRemoveCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
+		Use:   "remove",
 		Short: "Show configured DNS servers",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
