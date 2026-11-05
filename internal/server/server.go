@@ -29,3 +29,20 @@ func (s *Server) AddServer(ctx context.Context, req *dnsv1.AddServerRequest) (*d
 	}
 	return &dnsv1.AddServerResponse{}, nil
 }
+
+func (s *Server) RemoveServer(ctx context.Context, req *dnsv1.RemoveServerRequest) (*dnsv1.RemoveServerResponse, error) {
+	if err := s.svc.Remove(ctx, req.GetAdresses()); err != nil {
+		return nil, errors.New("err")
+	}
+	return &dnsv1.RemoveServerResponse{}, nil
+}
+
+func (s *Server) ListServers(ctx context.Context, req *dnsv1.ListServersRequest) (*dnsv1.ListServersResponse, error) {
+	res, err := s.svc.List(ctx)
+	if err != nil {
+		return nil, errors.New("err")
+	}
+	return &dnsv1.ListServersResponse{
+		Adresses: res,
+	}, nil
+}
