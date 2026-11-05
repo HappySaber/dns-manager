@@ -18,13 +18,16 @@ type options struct {
 }
 
 func NewRootCmd() *cobra.Command {
+	opts := &options{}
 
 	root := &cobra.Command{
 		Use:   "dns-cli",
 		Short: "Manage DNS servers on the storage system",
 	}
+	root.PersistentFlags().StringVar(&opts.addr, "addr", "localhost:50051", "dnsd server address")
+	root.PersistentFlags().DurationVar(&opts.timeout, "timeout", 5*time.Second, "request timeout")
 
-	root.AddCommand(newListCmd(), newAddCmd(), newRemoveCmd())
+	root.AddCommand(newListCmd(opts), newAddCmd(opts), newRemoveCmd(opts))
 	return root
 }
 

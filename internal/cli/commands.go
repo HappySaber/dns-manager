@@ -28,25 +28,38 @@ func newListCmd(o *options) *cobra.Command {
 	}
 }
 
-func newAddCmd() *cobra.Command {
+func newAddCmd(o *options) *cobra.Command {
 	return &cobra.Command{
-		Use:   "add",
-		Short: "Show configured DNS servers",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			fmt.Println("newaddcom")
-			return nil
+		Use:   "add <ip>",
+		Short: "Add a DNS server",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return o.call(cmd, func(ctx context.Context, c dnsv1.DNSServiceClient) error {
+				_, err := c.AddServer(ctx, &dnsv1.AddServerRequest{})
+				if err != nil {
+					return err
+				}
+				fmt.Fprintln(cmd.OutOrStdout(), "ok")
+				return nil
+			})
 		},
 	}
 }
 
-func newRemoveCmd() *cobra.Command {
+func newRemoveCmd(o *options) *cobra.Command {
 	return &cobra.Command{
-		Use:   "remove",
-		Short: "Show configured DNS servers",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return nil
+		Use:   "remove <ip>",
+		Short: "Remove a DNS server by ip",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return o.call(cmd, func(ctx context.Context, c dnsv1.DNSServiceClient) error {
+				_, err := c.RemoveServer(ctx, &dnsv1.RemoveServerRequest{})
+				if err != nil {
+					return err
+				}
+				fmt.Fprintln(cmd.OutOrStdout(), "ok")
+				return nil
+			})
 		},
 	}
 }
