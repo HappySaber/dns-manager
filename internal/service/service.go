@@ -5,16 +5,25 @@ import (
 	"dnsmanager/internal/resolvconf"
 	"errors"
 	"fmt"
+	"log/slog"
+	"net/netip"
+	"slices"
+	"sync"
 )
+
+const MaxNameservers = 3
 
 var (
 	ErrInvalidAddress = errors.New("invalid address")
 	ErrAlreadyExists  = errors.New("server already exists")
 	ErrNotFound       = errors.New("server not found")
+	ErrLimitReached   = errors.New("too many DNS servers")
 )
 
 type Service struct {
-	rc ResolvConf
+	rc  ResolvConf
+	mu  sync.Mutex
+	log *slog.Logger
 }
 
 type ResolvConf interface {
@@ -22,9 +31,10 @@ type ResolvConf interface {
 	Write(*resolvconf.File) error
 }
 
-func New(rc ResolvConf) *Service {
+func New(rc ResolvConf, log *slog.Logger) *Service {
 	return &Service{
-		rc: rc,
+		rc:  rc,
+		log: log,
 	}
 }
 
@@ -48,7 +58,43 @@ func (s *Service) List(ctx context.Context) ([]string, error) {
 }
 
 func (s *Service) Add(ctx context.Context, addr string) error {
-	//impl
+	addrParsed, err := netip.ParseAddr(addr)
+	if err != nil {
+		return fmt.Errorf("%w: %q", ErrInvalidAddress, addr)
+	}
+	if addrParsed.IsUnspecified() || addrParsed.IsMulticast() {
+		return fmt.Errorf("%w: %s", ErrInvalidAddress, addrParsed)
+	}
+
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err != nil {
+		return fmt.Errorf("read resolv.conf: %w", err)
+	}
+
+	f, err := s.rc.Read()
+	if err != nil {
+		return fmt.Errorf("read resolv.conf: %w", err)
+	}
+
+	current := f.Nameservers()
+	if slices.Contains(current, addrParsed) {
+		return fmt.Errorf("%w: %s", ErrAlreadyExists, addr)
+	}
+	if len(current) >= MaxNameservers {
+		return fmt.Errorf("%w: limit is %d", ErrLimitReached, MaxNameservers)
+	}
+
+	f.SetNameservers(append(current, addrParsed))
+	if err := s.rc.Write(f); err != nil {
+		return fmt.Errorf("write resolv.conf: %w", err)
+	}
+	s.log.Info("dns server added", "addr", addrParsed.String())
 	return nil
 }
 
