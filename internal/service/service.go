@@ -4,6 +4,7 @@ import (
 	"context"
 	"dnsmanager/internal/resolvconf"
 	"errors"
+	"fmt"
 )
 
 var (
@@ -28,8 +29,22 @@ func New(rc ResolvConf) *Service {
 }
 
 func (s *Service) List(ctx context.Context) ([]string, error) {
-	//impl
-	return []string{}, nil
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	f, err := s.rc.Read()
+	if err != nil {
+		return nil, fmt.Errorf("read resolv.conf: %w", err)
+	}
+
+	addrs := f.Nameservers()
+	res := make([]string, len(addrs))
+
+	for i, val := range addrs {
+		res[i] = val.String()
+	}
+	return res, nil
 }
 
 func (s *Service) Add(ctx context.Context, addr string) error {
