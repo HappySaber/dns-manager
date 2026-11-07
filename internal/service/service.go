@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"dnsmanager/internal/resolvconf"
 	"errors"
 )
 
@@ -12,11 +13,18 @@ var (
 )
 
 type Service struct {
-	servers []string
+	rc ResolvConf
 }
 
-func New() *Service {
-	return &Service{}
+type ResolvConf interface {
+	Read() (*resolvconf.File, error)
+	Write(*resolvconf.File) error
+}
+
+func New(rc ResolvConf) *Service {
+	return &Service{
+		rc: rc,
+	}
 }
 
 func (s *Service) List(ctx context.Context) ([]string, error) {
