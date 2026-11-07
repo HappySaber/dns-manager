@@ -81,3 +81,15 @@ func appendNS(dst []line, addrs []netip.Addr) []line {
 	}
 	return dst
 }
+
+func (f *File) Render() []byte {
+	if len(f.lines) == 0 {
+		return nil
+	}
+	var b strings.Builder
+	for _, l := range f.lines {
+		b.WriteString(l.raw)
+		b.WriteByte('\n')
+	}
+	return []byte(b.String())
+}
