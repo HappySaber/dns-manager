@@ -58,12 +58,9 @@ func (s *Service) List(ctx context.Context) ([]string, error) {
 }
 
 func (s *Service) Add(ctx context.Context, addr string) error {
-	addrParsed, err := netip.ParseAddr(addr)
+	addrParsed, err := parseAddr(addr)
 	if err != nil {
-		return fmt.Errorf("%w: %q", ErrInvalidAddress, addr)
-	}
-	if addrParsed.IsUnspecified() || addrParsed.IsMulticast() {
-		return fmt.Errorf("%w: %s", ErrInvalidAddress, addrParsed)
+		return err
 	}
 
 	if err := ctx.Err(); err != nil {
@@ -99,6 +96,42 @@ func (s *Service) Add(ctx context.Context, addr string) error {
 }
 
 func (s *Service) Remove(ctx context.Context, addr string) error {
-	//impl
+	addrParsed, err := parseAddr(addr)
+	if err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	f, err := s.rc.Read()
+	if err != nil {
+		return fmt.Errorf("read resolv.conf: %w", err)
+	}
+	current := f.Nameservers()
+	i := slices.Index(current, addrParsed)
+	if i < 0 {
+		return fmt.Errorf("%w: %s", ErrNotFound, addrParsed)
+	}
+
+	f.SetNameservers(slices.Delete(current, i, i+1))
+	if err := s.rc.Write(f); err != nil {
+		return fmt.Errorf("write resolv.conf: %w", err)
+	}
+	s.log.Info("dns server removed", "addr", addrParsed.String())
 	return nil
+}
+
+func parseAddr(addr string) (netip.Addr, error) {
+	addrParsed, err := netip.ParseAddr(addr)
+	if err != nil {
+		return netip.Addr{}, fmt.Errorf("%w: %q", ErrInvalidAddress, addr)
+	}
+	if addrParsed.IsUnspecified() || addrParsed.IsMulticast() {
+		return netip.Addr{}, fmt.Errorf("%w: %s", ErrInvalidAddress, addrParsed)
+	}
+	return addrParsed, nil
 }
