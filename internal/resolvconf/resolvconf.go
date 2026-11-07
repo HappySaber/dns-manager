@@ -15,6 +15,7 @@ type File struct {
 	lines []line
 }
 
+// Parse raws if cant parse, than save raw as it was
 func Parse(data []byte) *File {
 	f := &File{}
 	text := strings.TrimRight(string(data), "\r\n")
@@ -55,6 +56,7 @@ func (f *File) Nameservers() []netip.Addr {
 	return res
 }
 
+// SetNameservers replace all nameservers raws
 func (f *File) SetNameservers(adrrs []netip.Addr) {
 	out := make([]line, 0, len(f.lines)+len(adrrs))
 	placed := false
