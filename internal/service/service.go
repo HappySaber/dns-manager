@@ -70,10 +70,6 @@ func (s *Service) Add(ctx context.Context, addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err != nil {
-		return fmt.Errorf("read resolv.conf: %w", err)
-	}
-
 	f, err := s.rc.Read()
 	if err != nil {
 		return fmt.Errorf("read resolv.conf: %w", err)
