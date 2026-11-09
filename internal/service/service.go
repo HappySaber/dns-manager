@@ -32,10 +32,12 @@ type ResolvConf interface {
 }
 
 type Service struct {
-	bu  Backup
-	rc  ResolvConf
-	mu  sync.Mutex
-	log *slog.Logger
+	bu       Backup
+	rc       ResolvConf
+	known    []netip.Addr
+	knownSet bool
+	mu       sync.Mutex
+	log      *slog.Logger
 }
 
 func New(rc ResolvConf, bu Backup, log *slog.Logger) *Service {
@@ -187,11 +189,37 @@ func (s *Service) Restore(ctx context.Context) error {
 	return nil
 }
 
+func (s *Service) Sync(ctx context.Context) {
+	if ctx.Err() != nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	f, err := s.rc.Read()
+	if err != nil {
+		s.log.Warn("sync: read resolv.conf failed", "err", err)
+		return
+	}
+	cur := f.Nameservers()
+	if !s.knownSet {
+		s.known, s.knownSet = cur, true
+		return
+	}
+	if slices.Equal(cur, s.known) {
+		return
+	}
+	s.log.Warn("resolv.conf changed externally",
+		"before", toStrings(s.known), "after", toStrings(cur))
+	s.known = cur
+}
+
 func (s *Service) apply(f *resolvconf.File, addrs []netip.Addr) error {
 	f.SetNameservers(addrs)
 	if err := s.rc.Write(f); err != nil {
 		return fmt.Errorf("write resolv.conf: %w", err)
 	}
+	s.known, s.knownSet = slices.Clone(addrs), true
 	if err := s.bu.Save(toStrings(addrs)); err != nil {
 		return fmt.Errorf("resolv.conf updated, but backup failed: %w", err)
 	}
