@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"dnsmanager/internal/utils"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,4 +30,16 @@ func New(dir string) (*Store, error) {
 		return nil, fmt.Errorf("create backup dir: %w", err)
 	}
 	return &Store{path: filepath.Join(dir, fileName), now: time.Now}, nil
+}
+
+func (s *Store) Save(servers []string) error {
+	snap := snapshot{UpdatedAt: s.now().UTC(), Servers: servers}
+	data, err := json.MarshalIndent(snap, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal backup: %w", err)
+	}
+	if err := utils.WriteFileAtomic(s.path, data, 0o644); err != nil {
+		return fmt.Errorf("write backup: %w", err)
+	}
+	return nil
 }
