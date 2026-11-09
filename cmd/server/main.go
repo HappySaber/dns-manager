@@ -2,46 +2,43 @@ package main
 
 import (
 	"context"
-	dnsv1 "dnsmanager/gen/dns-manager"
+	"flag"
 	"log/slog"
-	"net"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"google.golang.org/grpc"
+	"dnsmanager/internal/app"
+	"dnsmanager/internal/config"
 )
 
-type server struct {
-	dnsv1.UnimplementedDNSServiceServer
-}
-
-func (s *server) ListServers(_ context.Context, _ *dnsv1.ListServersRequest) (*dnsv1.ListServersResponse, error) {
-	return &dnsv1.ListServersResponse{Adresses: []string{"8.8.8.8"}}, nil
-}
-
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
+	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+
+	configPath := flag.String("config", "config/config.yaml", "path to config file")
+	flag.Parse()
+
+	cfg, err := config.Load(*configPath)
+	if err != nil {
+		log.Error("load config failed", "err", err)
+		return 1
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	lis, err := net.Listen("tcp", ":50051")
+	a, err := app.New(cfg, log)
 	if err != nil {
-		slog.Error("listen failed", "err", err)
-		os.Exit(1)
+		log.Error("init failed", "err", err)
+		return 1
 	}
-
-	grpcServer := grpc.NewServer()
-	dnsv1.RegisterDNSServiceServer(grpcServer, &server{})
-
-	go func() {
-		<-ctx.Done()
-		slog.Info("shutting down")
-		grpcServer.GracefulStop()
-	}()
-
-	slog.Info("listening", "addr", lis.Addr().String())
-	if err := grpcServer.Serve(lis); err != nil {
-		slog.Error("serve failed", "err", err)
-		os.Exit(1)
+	if err := a.Run(ctx); err != nil {
+		log.Error("run failed", "err", err)
+		return 1
 	}
+	return 0
 }
