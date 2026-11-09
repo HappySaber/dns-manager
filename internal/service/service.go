@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"dnsmanager/internal/resolvconf"
+	"dnsmanager/internal/storage"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -90,9 +91,8 @@ func (s *Service) Add(ctx context.Context, addr string) error {
 		return fmt.Errorf("%w: limit is %d", ErrLimitReached, MaxNameservers)
 	}
 
-	f.SetNameservers(append(current, addrParsed))
-	if err := s.rc.Write(f); err != nil {
-		return fmt.Errorf("write resolv.conf: %w", err)
+	if err := s.apply(f, append(current, addrParsed)); err != nil {
+		return err
 	}
 	s.log.Info("dns server added", "addr", addrParsed.String())
 	return nil
@@ -137,6 +137,54 @@ func parseAddr(addr string) (netip.Addr, error) {
 		return netip.Addr{}, fmt.Errorf("%w: %s", ErrInvalidAddress, addrParsed)
 	}
 	return addrParsed, nil
+}
+
+func (s *Service) Restore(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	f, err := s.rc.Read()
+	if err != nil {
+		return fmt.Errorf("read resolv.conf: %w", err)
+	}
+	if len(f.Nameservers()) > 0 {
+		s.log.Info("resolv.conf already has nameservers, restore skipped")
+		return nil
+	}
+
+	saved, err := s.bu.Load()
+	if errors.Is(err, storage.ErrNotFound) {
+		s.log.Info("no backup found, nothing to restore")
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("load backup: %w", err)
+	}
+
+	var addrs []netip.Addr
+	for _, raw := range saved {
+		a, err := parseAddr(raw)
+		if err != nil {
+			s.log.Warn("skipping invalid address from backup", "addr", raw)
+			continue
+		}
+		if !slices.Contains(addrs, a) && len(addrs) < MaxNameservers {
+			addrs = append(addrs, a)
+		}
+	}
+	if len(addrs) == 0 {
+		return nil
+	}
+
+	f.SetNameservers(addrs)
+	if err := s.rc.Write(f); err != nil {
+		return fmt.Errorf("write resolv.conf: %w", err)
+	}
+	s.log.Info("dns servers restored from backup", "count", len(addrs))
+	return nil
 }
 
 func (s *Service) apply(f *resolvconf.File, addrs []netip.Addr) error {
