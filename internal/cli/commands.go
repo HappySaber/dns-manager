@@ -35,7 +35,7 @@ func newAddCmd(o *options) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return o.call(cmd, func(ctx context.Context, c dnsv1.DNSServiceClient) error {
-				_, err := c.AddServer(ctx, &dnsv1.AddServerRequest{})
+				_, err := c.AddServer(ctx, &dnsv1.AddServerRequest{Adresses: args[0]})
 				if err != nil {
 					return err
 				}
@@ -53,7 +53,7 @@ func newRemoveCmd(o *options) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return o.call(cmd, func(ctx context.Context, c dnsv1.DNSServiceClient) error {
-				_, err := c.RemoveServer(ctx, &dnsv1.RemoveServerRequest{})
+				_, err := c.RemoveServer(ctx, &dnsv1.RemoveServerRequest{Adresses: args[0]})
 				if err != nil {
 					return err
 				}
