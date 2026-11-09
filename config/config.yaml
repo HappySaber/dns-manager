@@ -1,0 +1,4 @@
+listen_addr: ":50051"
+resolv_conf_path: "./tmp/resolv.conf"
+backup_dir: "./tmp/backup"
+shutdown_timeout: "10s"
