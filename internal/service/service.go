@@ -20,10 +20,9 @@ var (
 	ErrLimitReached   = errors.New("too many DNS servers")
 )
 
-type Service struct {
-	rc  ResolvConf
-	mu  sync.Mutex
-	log *slog.Logger
+type Backup interface {
+	Save(servers []string) error
+	Load() ([]string, error)
 }
 
 type ResolvConf interface {
@@ -31,9 +30,17 @@ type ResolvConf interface {
 	Write(*resolvconf.File) error
 }
 
-func New(rc ResolvConf, log *slog.Logger) *Service {
+type Service struct {
+	bu  Backup
+	rc  ResolvConf
+	mu  sync.Mutex
+	log *slog.Logger
+}
+
+func New(rc ResolvConf, bu Backup, log *slog.Logger) *Service {
 	return &Service{
 		rc:  rc,
+		bu:  bu,
 		log: log,
 	}
 }
