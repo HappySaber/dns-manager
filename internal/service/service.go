@@ -138,3 +138,22 @@ func parseAddr(addr string) (netip.Addr, error) {
 	}
 	return addrParsed, nil
 }
+
+func (s *Service) apply(f *resolvconf.File, addrs []netip.Addr) error {
+	f.SetNameservers(addrs)
+	if err := s.rc.Write(f); err != nil {
+		return fmt.Errorf("write resolv.conf: %w", err)
+	}
+	if err := s.bu.Save(toStrings(addrs)); err != nil {
+		return fmt.Errorf("resolv.conf updated, but backup failed: %w", err)
+	}
+	return nil
+}
+
+func toStrings(addrs []netip.Addr) []string {
+	res := make([]string, len(addrs))
+	for i, a := range addrs {
+		res[i] = a.String()
+	}
+	return res
+}
