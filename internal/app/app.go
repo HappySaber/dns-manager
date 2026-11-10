@@ -15,6 +15,7 @@ import (
 	"dnsmanager/internal/server"
 	"dnsmanager/internal/service"
 	"dnsmanager/internal/storage"
+	"dnsmanager/internal/watcher"
 )
 
 type App struct {
@@ -22,6 +23,7 @@ type App struct {
 	lis             net.Listener
 	grpcServer      *grpc.Server
 	svc             *service.Service
+	watcher         *watcher.Watcher
 	shutdownTimeout time.Duration
 }
 
@@ -30,7 +32,6 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init backup storage: %w", err)
 	}
-
 	lis, err := net.Listen("tcp", cfg.ListenAddr)
 	if err != nil {
 		return nil, fmt.Errorf("listen %s: %w", cfg.ListenAddr, err)
@@ -38,7 +39,7 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 
 	rc := resolvconf.NewStore(cfg.ResolvConfPath)
 	svc := service.New(rc, bk, log)
-
+	watcher.New(cfg.ResolvConfPath, cfg.WatchDebounce, log)
 	grpcServer := grpc.NewServer()
 	dnsv1.RegisterDNSServiceServer(grpcServer, server.New(svc))
 
@@ -57,6 +58,7 @@ func (a *App) Run(ctx context.Context) error {
 	if err := a.svc.Restore(ctx); err != nil {
 		a.log.Warn("restore failed, continuing without it", "err", err)
 	}
+	a.svc.Sync(ctx)
 
 	errCh := make(chan error, 1)
 	go func() {
