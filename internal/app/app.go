@@ -7,6 +7,7 @@ import (
 	"net"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
 	dnsv1 "dnsmanager/gen/dns-manager"
@@ -39,14 +40,15 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 
 	rc := resolvconf.NewStore(cfg.ResolvConfPath)
 	svc := service.New(rc, bk, log)
-	watcher.New(cfg.ResolvConfPath, cfg.WatchDebounce, log)
+	wtchr := watcher.New(cfg.ResolvConfPath, cfg.WatchDebounce, log)
 	grpcServer := grpc.NewServer()
-	dnsv1.RegisterDNSServiceServer(grpcServer, server.New(svc))
+	dnsv1.RegisterDNSServiceServer(grpcServer, server.New(svc, log))
 
 	return &App{
 		log:             log,
 		lis:             lis,
 		grpcServer:      grpcServer,
+		watcher:         wtchr,
 		svc:             svc,
 		shutdownTimeout: cfg.ShutdownTimeout,
 	}, nil
@@ -60,6 +62,13 @@ func (a *App) Run(ctx context.Context) error {
 	}
 	a.svc.Sync(ctx)
 
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error { return a.watcher.Run(ctx, a.svc.Sync) })
+	g.Go(func() error { return a.serve(ctx) })
+	return g.Wait()
+}
+
+func (a *App) serve(ctx context.Context) error {
 	errCh := make(chan error, 1)
 	go func() {
 		a.log.Info("grpc server started", "addr", a.lis.Addr().String())
