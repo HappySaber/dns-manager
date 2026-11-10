@@ -14,12 +14,14 @@ type Config struct {
 	ResolvConfPath  string        `yaml:"resolv_conf_path"`
 	BackupDir       string        `yaml:"backup_dir"`
 	ShutdownTimeout time.Duration `yaml:"shutdown_timeout"`
+	WatchDebounce   time.Duration `yaml:"watch_debounce"`
 }
 
 func Default() Config {
 	return Config{
 		ListenAddr:      ":50051",
 		ShutdownTimeout: 10 * time.Second,
+		WatchDebounce:   100 * time.Millisecond,
 	}
 }
 
