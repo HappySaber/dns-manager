@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 )
 
 type Store struct {
@@ -22,7 +23,7 @@ func (s *Store) Read() (*File, error) {
 	data, err := os.ReadFile(s.path)
 
 	if errors.Is(err, fs.ErrNotExist) {
-		return &File{}, err
+		return &File{}, nil
 	}
 
 	if err != nil {
@@ -32,5 +33,8 @@ func (s *Store) Read() (*File, error) {
 }
 
 func (s *Store) Write(f *File) error {
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+		return fmt.Errorf("create dir for %s: %w", s.path, err)
+	}
 	return utils.WriteFileAtomic(s.path, f.Render(), 0o644)
 }
