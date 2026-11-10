@@ -4,9 +4,12 @@ go 1.26.8
 
 require (
 	github.com/spf13/cobra v1.10.2
+	golang.org/x/sync v0.25.0
 	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
 )
+
+require github.com/fsnotify/fsnotify v1.10.1
 
 require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
