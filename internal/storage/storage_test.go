@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"dnsmanager/internal/model"
 	"encoding/json"
 	"errors"
 	"os"
@@ -43,28 +44,28 @@ func TestNew_FailsWhenPathIsFile(t *testing.T) {
 func TestSaveLoad_RoundTrip(t *testing.T) {
 	s, _ := newStore(t)
 	want := []string{"8.8.8.8", "1.1.1.1", "2001:db8::1"}
-	if err := s.Save(want); err != nil {
+	if err := s.Save(model.State{Servers: want}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := s.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(got, want) {
+	if !slices.Equal(got.Servers, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 }
 
 func TestSaveLoad_EmptyList(t *testing.T) {
 	s, _ := newStore(t)
-	if err := s.Save(nil); err != nil {
+	if err := s.Save(model.State{}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := s.Load()
 	if err != nil {
 		t.Fatalf("empty backup must load without error, got %v", err)
 	}
-	if len(got) != 0 {
+	if len(got.Servers) != 0 {
 		t.Fatalf("got %v, want empty", got)
 	}
 }
@@ -104,14 +105,15 @@ func TestLoad_UnsupportedVersion(t *testing.T) {
 
 func TestSave_OverwritesAndLeavesNoTempFiles(t *testing.T) {
 	s, dir := newStore(t)
-	if err := s.Save([]string{"1.1.1.1", "2.2.2.2"}); err != nil {
+	if err := s.Save(model.State{Servers: []string{"1.1.1.1", "2.2.2.2"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Save([]string{"3.3.3.3"}); err != nil {
+
+	if err := s.Save(model.State{Servers: []string{"3.3.3.3"}}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := s.Load()
-	if err != nil || !slices.Equal(got, []string{"3.3.3.3"}) {
+	if err != nil || !slices.Equal(got.Servers, []string{"3.3.3.3"}) {
 		t.Fatalf("got %v, err %v", got, err)
 	}
 	entries, _ := os.ReadDir(dir)
@@ -125,7 +127,7 @@ func TestSave_WritesVersionAndTimestamp(t *testing.T) {
 	fixed := time.Date(2026, 11, 10, 12, 0, 0, 0, time.FixedZone("MSK", 3*3600))
 	s.now = func() time.Time { return fixed }
 
-	if err := s.Save([]string{"8.8.8.8"}); err != nil {
+	if err := s.Save(model.State{Servers: []string{"8.8.8.8"}}); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(s.path)
@@ -149,7 +151,7 @@ func TestSave_FailsWhenDirRemoved(t *testing.T) {
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Save([]string{"8.8.8.8"}); err == nil {
+	if err := s.Save(model.State{Servers: []string{"8.8.8.8"}}); err == nil {
 		t.Fatal("expected error when backup directory is gone")
 	}
 }

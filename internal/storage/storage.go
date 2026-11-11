@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"dnsmanager/internal/model"
 	"dnsmanager/internal/utils"
 	"encoding/json"
 	"errors"
@@ -26,6 +27,8 @@ type Store struct {
 type snapshot struct {
 	Version   int       `json:"version"`
 	UpdatedAt time.Time `json:"updated_at"`
+	Revision  uint64    `json:"revision"`
+	Origin    string    `json:"origin"`
 	Servers   []string  `json:"servers"`
 }
 
@@ -37,8 +40,14 @@ func New(dir string) (*Store, error) {
 	return &Store{path: filepath.Join(dir, fileName), now: time.Now}, nil
 }
 
-func (s *Store) Save(servers []string) error {
-	snap := snapshot{Version: schemaVersion, UpdatedAt: s.now().UTC(), Servers: servers}
+func (s *Store) Save(st model.State) error {
+	snap := snapshot{
+		Version:   schemaVersion,
+		UpdatedAt: s.now().UTC(),
+		Revision:  st.Revision,
+		Origin:    st.Origin,
+		Servers:   st.Servers,
+	}
 	data, err := json.MarshalIndent(snap, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal backup: %w", err)
@@ -49,20 +58,20 @@ func (s *Store) Save(servers []string) error {
 	return nil
 }
 
-func (s *Store) Load() ([]string, error) {
+func (s *Store) Load() (model.State, error) {
 	data, err := os.ReadFile(s.path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, ErrNotFound
+		return model.State{}, ErrNotFound
 	}
 	if err != nil {
-		return nil, fmt.Errorf("read backup: %w", err)
+		return model.State{}, fmt.Errorf("read backup: %w", err)
 	}
 	var snap snapshot
 	if err := json.Unmarshal(data, &snap); err != nil {
-		return nil, fmt.Errorf("parse backup: %w", err)
+		return model.State{}, fmt.Errorf("parse backup: %w", err)
 	}
 	if snap.Version != schemaVersion {
-		return nil, fmt.Errorf("unsupported backup version %d", snap.Version)
+		return model.State{}, fmt.Errorf("unsupported backup version %d", snap.Version)
 	}
-	return snap.Servers, nil
+	return model.State{Revision: snap.Revision, Origin: snap.Origin, Servers: snap.Servers}, nil
 }
