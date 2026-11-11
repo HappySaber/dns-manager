@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package dns.v1;
+
+option go_package = "dnsmanager/gen/dns/v1;dnsv1";
+
+service ClusterService {
+  rpc GetState(GetStateRequest) returns (GetStateResponse);
+  rpc Replicate(ReplicateRequest) returns (ReplicateResponse);
+}
+
+message NodeState {
+  uint64 revision = 1;
+  string origin = 2;           
+  repeated string servers = 3;
+}
+
+message GetStateRequest {}
+message GetStateResponse { NodeState state = 1; }
+message ReplicateRequest { NodeState state = 1; }
+message ReplicateResponse {}
