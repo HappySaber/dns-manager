@@ -13,6 +13,7 @@ import (
 	"sync"
 )
 
+// Max nimber of servers, another won't work in file
 const MaxNameservers = 3
 
 var (
@@ -30,6 +31,11 @@ type Backup interface {
 type ResolvConf interface {
 	Read() (*resolvconf.File, error)
 	Write(*resolvconf.File) error
+}
+
+type Peer interface {
+	GetState(ctx context.Context) (model.State, error)
+	Replicate(ctx context.Context, st model.State) error
 }
 
 type Service struct {
