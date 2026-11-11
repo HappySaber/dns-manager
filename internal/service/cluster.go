@@ -67,3 +67,33 @@ func parseAll(raw []string) ([]netip.Addr, error) {
 	}
 	return addrs, nil
 }
+
+func (s *Service) Reconcile(ctx context.Context) {
+	if s.peer == nil || ctx.Err() != nil {
+		return
+	}
+	local := s.State()
+
+	cctx, cancel := context.WithTimeout(ctx, s.replTimeout)
+	defer cancel()
+	remote, err := s.peer.GetState(cctx)
+	if err != nil {
+		s.log.Debug("peer unavailable", "err", err)
+		return
+	}
+
+	switch {
+	case remote.NewerThan(local):
+		if err := s.ApplyRemote(ctx, remote); err != nil {
+			s.log.Warn("reconcile: apply peer state failed", "err", err)
+		}
+	case local.NewerThan(remote):
+		pctx, pcancel := context.WithTimeout(ctx, s.replTimeout)
+		defer pcancel()
+		if err := s.peer.Replicate(pctx, local); err != nil {
+			s.log.Warn("reconcile: push to peer failed", "err", err)
+			return
+		}
+		s.log.Info("peer brought up to date", "revision", local.Revision)
+	}
+}
