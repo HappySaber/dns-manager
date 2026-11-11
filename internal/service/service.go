@@ -94,31 +94,20 @@ func (s *Service) Add(ctx context.Context, addr string) error {
 	if err != nil {
 		return err
 	}
-
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	f, err := s.rc.Read()
+	st, err := s.mutate(ctx, func(cur []netip.Addr) ([]netip.Addr, error) {
+		if slices.Contains(cur, addrParsed) {
+			return nil, fmt.Errorf("%w: %s", ErrAlreadyExists, addrParsed)
+		}
+		if len(cur) >= MaxNameservers {
+			return nil, fmt.Errorf("%w: limit is %d", ErrLimitReached, MaxNameservers)
+		}
+		return append(cur, addrParsed), nil
+	})
 	if err != nil {
-		return fmt.Errorf("read resolv.conf: %w", err)
-	}
-
-	current := f.Nameservers()
-	if slices.Contains(current, addrParsed) {
-		return fmt.Errorf("%w: %s", ErrAlreadyExists, addr)
-	}
-	if len(current) >= MaxNameservers {
-		return fmt.Errorf("%w: limit is %d", ErrLimitReached, MaxNameservers)
-	}
-
-	if err := s.apply(f, append(current, addrParsed)); err != nil {
 		return err
 	}
-	s.log.Info("dns server added", "addr", addrParsed.String())
+	s.log.Info("dns server added", "addr", addrParsed.String(), "revision", st.Revision)
+	s.replicate(ctx, st)
 	return nil
 }
 
@@ -236,16 +225,19 @@ func (s *Service) Sync(ctx context.Context) {
 	s.known = cur
 }
 
-func (s *Service) apply(f *resolvconf.File, addrs []netip.Addr) error {
+func (s *Service) apply(f *resolvconf.File, addrs []netip.Addr) (model.State, error) {
 	f.SetNameservers(addrs)
 	if err := s.rc.Write(f); err != nil {
-		return fmt.Errorf("write resolv.conf: %w", err)
+		return model.State{}, fmt.Errorf("write resolv.conf: %w", err)
 	}
 	s.known, s.knownSet = slices.Clone(addrs), true
-	if err := s.bu.Save(model.State{Servers: toStrings(addrs)}); err != nil {
-		return fmt.Errorf("resolv.conf updated, but backup failed: %w", err)
+
+	st := model.State{Revision: s.state.Revision + 1, Origin: s.nodeID, Servers: toStrings(addrs)}
+	s.state = st
+	if err := s.bu.Save(st); err != nil {
+		return model.State{}, fmt.Errorf("resolv.conf updated, but backup failed: %w", err)
 	}
-	return nil
+	return st, nil
 }
 
 func toStrings(addrs []netip.Addr) []string {
@@ -254,4 +246,34 @@ func toStrings(addrs []netip.Addr) []string {
 		res[i] = a.String()
 	}
 	return res
+}
+
+func (s *Service) mutate(ctx context.Context, change func(cur []netip.Addr) ([]netip.Addr, error)) (model.State, error) {
+	if err := ctx.Err(); err != nil {
+		return model.State{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	f, err := s.rc.Read()
+	if err != nil {
+		return model.State{}, fmt.Errorf("read resolv.conf: %w", err)
+	}
+	next, err := change(f.Nameservers())
+	if err != nil {
+		return model.State{}, err
+	}
+	return s.apply(f, next)
+}
+
+func (s *Service) replicate(ctx context.Context, st model.State) {
+	if s.peer == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.replTimeout)
+	defer cancel()
+	if err := s.peer.Replicate(ctx, st); err != nil {
+		s.log.Warn("replication to peer failed, will retry in background",
+			"revision", st.Revision, "err", err)
+	}
 }
