@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"slices"
 	"sync"
+	"time"
 )
 
 // Max nimber of servers, another won't work in file
@@ -45,6 +46,20 @@ type Service struct {
 	knownSet bool
 	mu       sync.Mutex
 	log      *slog.Logger
+
+	state model.State
+
+	nodeID      string
+	peer        Peer
+	replTimeout time.Duration
+}
+
+type Option func(*Service)
+
+func WithCluster(nodeID string, peer Peer, timeout time.Duration) Option {
+	return func(s *Service) {
+		s.nodeID, s.peer, s.replTimeout = nodeID, peer, timeout
+	}
 }
 
 func New(rc ResolvConf, bu Backup, log *slog.Logger) *Service {
