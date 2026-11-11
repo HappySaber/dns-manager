@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"dnsmanager/internal/model"
 	"dnsmanager/internal/resolvconf"
 	"dnsmanager/internal/storage"
 	"errors"
@@ -22,8 +23,8 @@ var (
 )
 
 type Backup interface {
-	Save(servers []string) error
-	Load() ([]string, error)
+	Save(model.State) error
+	Load() (model.State, error)
 }
 
 type ResolvConf interface {
@@ -167,7 +168,7 @@ func (s *Service) Restore(ctx context.Context) error {
 	}
 
 	var addrs []netip.Addr
-	for _, raw := range saved {
+	for _, raw := range saved.Servers {
 		a, err := parseAddr(raw)
 		if err != nil {
 			s.log.Warn("skipping invalid address from backup", "addr", raw)
@@ -220,7 +221,7 @@ func (s *Service) apply(f *resolvconf.File, addrs []netip.Addr) error {
 		return fmt.Errorf("write resolv.conf: %w", err)
 	}
 	s.known, s.knownSet = slices.Clone(addrs), true
-	if err := s.bu.Save(toStrings(addrs)); err != nil {
+	if err := s.bu.Save(model.State{Servers: toStrings(addrs)}); err != nil {
 		return fmt.Errorf("resolv.conf updated, but backup failed: %w", err)
 	}
 	return nil
