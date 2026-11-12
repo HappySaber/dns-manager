@@ -1,11 +1,12 @@
 .PHONY: proto
-proto:
-	mkdir -p gen
-	protoc \
-		--proto_path=api/proto \
-		--go_out=gen --go_opt=paths=source_relative \
-		--go-grpc_out=gen --go-grpc_opt=paths=source_relative \
-		api/proto/dns/v1/dns.proto
-
 build:
 	go build -o dns-cli cmd/cli/main.go
+
+server-a:
+	go run ./cmd/server/main.go --config config/node-a.yaml
+
+server-b:
+	go run ./cmd/server/main.go --config config/node-b.yaml
+
+server: 
+	go run ./cmd/server/main.go --config config/config.yaml
