@@ -62,31 +62,23 @@ func WithCluster(nodeID string, peer Peer, timeout time.Duration) Option {
 	}
 }
 
-func New(rc ResolvConf, bu Backup, log *slog.Logger) *Service {
-	return &Service{
-		rc:  rc,
-		bu:  bu,
-		log: log,
+func New(rc ResolvConf, bu Backup, log *slog.Logger, opts ...Option) *Service {
+	s := &Service{rc: rc, bu: bu, log: log, replTimeout: 2 * time.Second}
+	for _, o := range opts {
+		o(s)
 	}
+	return s
 }
 
 func (s *Service) List(ctx context.Context) ([]string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-
 	f, err := s.rc.Read()
 	if err != nil {
 		return nil, fmt.Errorf("read resolv.conf: %w", err)
 	}
-
-	addrs := f.Nameservers()
-	res := make([]string, len(addrs))
-
-	for i, val := range addrs {
-		res[i] = val.String()
-	}
-	return res, nil
+	return toStrings(f.Nameservers()), nil
 }
 
 func (s *Service) Add(ctx context.Context, addr string) error {
@@ -116,28 +108,20 @@ func (s *Service) Remove(ctx context.Context, addr string) error {
 	if err != nil {
 		return err
 	}
-	if err := ctx.Err(); err != nil {
+	st, err := s.mutate(ctx, func(cur []netip.Addr) ([]netip.Addr, error) {
+		i := slices.Index(cur, addrParsed)
+		if i < 0 {
+			return nil, fmt.Errorf("%w: %s", ErrNotFound, addr)
+		}
+		return slices.Delete(cur, i, i+1), nil
+	})
+
+	if err != nil {
 		return err
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	f, err := s.rc.Read()
-	if err != nil {
-		return fmt.Errorf("read resolv.conf: %w", err)
-	}
-	current := f.Nameservers()
-	i := slices.Index(current, addrParsed)
-	if i < 0 {
-		return fmt.Errorf("%w: %s", ErrNotFound, addrParsed)
-	}
-
-	f.SetNameservers(slices.Delete(current, i, i+1))
-	if err := s.rc.Write(f); err != nil {
-		return fmt.Errorf("write resolv.conf: %w", err)
-	}
-	s.log.Info("dns server removed", "addr", addrParsed.String())
+	s.log.Info("dns server removed", "addr", addrParsed.String(), "revision", st.Revision)
+	s.replicate(ctx, st)
 	return nil
 }
 
@@ -159,15 +143,6 @@ func (s *Service) Restore(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	f, err := s.rc.Read()
-	if err != nil {
-		return fmt.Errorf("read resolv.conf: %w", err)
-	}
-	if len(f.Nameservers()) > 0 {
-		s.log.Info("resolv.conf already has nameservers, restore skipped")
-		return nil
-	}
-
 	saved, err := s.bu.Load()
 	if errors.Is(err, storage.ErrNotFound) {
 		s.log.Info("no backup found, nothing to restore")
@@ -175,6 +150,16 @@ func (s *Service) Restore(ctx context.Context) error {
 	}
 	if err != nil {
 		return fmt.Errorf("load backup: %w", err)
+	}
+	s.state = model.State{Revision: saved.Revision, Origin: saved.Origin, Servers: slices.Clone(saved.Servers)}
+
+	f, err := s.rc.Read()
+	if err != nil {
+		return fmt.Errorf("read resolv.conf: %w", err)
+	}
+	if len(f.Nameservers()) > 0 {
+		s.log.Info("resolv.conf already has nameservers, restore skipped")
+		return nil
 	}
 
 	var addrs []netip.Addr
@@ -196,8 +181,10 @@ func (s *Service) Restore(ctx context.Context) error {
 	if err := s.rc.Write(f); err != nil {
 		return fmt.Errorf("write resolv.conf: %w", err)
 	}
-	s.log.Info("dns servers restored from backup", "count", len(addrs))
+	s.known, s.knownSet = slices.Clone(addrs), true
+	s.log.Info("dns servers restored from backup", "count", len(addrs), "revision", saved.Revision)
 	return nil
+
 }
 
 func (s *Service) Sync(ctx context.Context) {
