@@ -20,6 +20,9 @@ func New(path string, debounce time.Duration, log *slog.Logger) *Watcher {
 	return &Watcher{path: path, debounce: debounce, log: log}
 }
 
+// Run watches the directory of resolv.conf and calls onChange after a burst of
+// events for that file has settled for the debounce interval. It blocks until ctx
+// is canceled.
 func (w *Watcher) Run(ctx context.Context, onChange func(context.Context)) error {
 	fsw, err := fsnotify.NewWatcher()
 	if err != nil {

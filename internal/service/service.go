@@ -70,6 +70,9 @@ func New(rc ResolvConf, bu Backup, log *slog.Logger, opts ...Option) *Service {
 	return s
 }
 
+// List returns the nameservers currently in resolv.conf. It always reads the file
+// instead of using a cache, because a DHCP client may have rewritten it at any
+// moment and we must never show stale data.
 func (s *Service) List(ctx context.Context) ([]string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -81,6 +84,8 @@ func (s *Service) List(ctx context.Context) ([]string, error) {
 	return toStrings(f.Nameservers()), nil
 }
 
+// Add appends a DNS server. It validates the address, rejects duplicates and
+// enforces the limit of three servers (glibc ignores the rest).
 func (s *Service) Add(ctx context.Context, addr string) error {
 	addrParsed, err := parseAddr(addr)
 	if err != nil {
@@ -103,6 +108,8 @@ func (s *Service) Add(ctx context.Context, addr string) error {
 	return nil
 }
 
+// Remove deletes a DNS server and keeps the order of the remaining ones.
+// It returns ErrNotFound if the server is not in the file.
 func (s *Service) Remove(ctx context.Context, addr string) error {
 	addrParsed, err := parseAddr(addr)
 	if err != nil {
@@ -136,6 +143,8 @@ func parseAddr(addr string) (netip.Addr, error) {
 	return addrParsed, nil
 }
 
+// Restore runs at startup. It always loads the backup version
+// but rewrites resolv.conf only if the file has no nameservers at all.
 func (s *Service) Restore(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -187,6 +196,8 @@ func (s *Service) Restore(ctx context.Context) error {
 
 }
 
+// Sync re-reads resolv.conf and logs a warning if the nameserver list differs from
+// the last one we saw or wrote, which means someone else changed it.
 func (s *Service) Sync(ctx context.Context) {
 	if ctx.Err() != nil {
 		return

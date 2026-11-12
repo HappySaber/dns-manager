@@ -16,6 +16,7 @@ func (s *Service) State() model.State {
 	return st
 }
 
+// ApplyRemote applies a state received from the peer if it is newer than ours.
 func (s *Service) ApplyRemote(ctx context.Context, st model.State) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -68,6 +69,8 @@ func parseAll(raw []string) ([]netip.Addr, error) {
 	return addrs, nil
 }
 
+// Reconcile compares our state with the peer's and moves the older node forward:
+// it pulls a newer remote state or pushes a newer local one.
 func (s *Service) Reconcile(ctx context.Context) {
 	if s.peer == nil || ctx.Err() != nil {
 		return
