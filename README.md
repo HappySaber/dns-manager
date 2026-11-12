@@ -56,7 +56,7 @@ make server-a
 ```
 Запуск узла Б.
 ```bash
-	go run ./cmd/server/main.go --config config/node-b.yaml
+go run ./cmd/server/main.go --config config/node-b.yaml
 ```
 
 или 
