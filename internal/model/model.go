@@ -1,6 +1,6 @@
 package model
 
-// State is state of dns server and it's version
+// State is the desired list of DNS servers together with its version.
 type State struct {
 	Revision uint64
 	Origin   string

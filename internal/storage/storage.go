@@ -40,6 +40,7 @@ func New(dir string) (*Store, error) {
 	return &Store{path: filepath.Join(dir, fileName), now: time.Now}, nil
 }
 
+// Save atomically writes the desired state to the backup disk.
 func (s *Store) Save(st model.State) error {
 	snap := snapshot{
 		Version:   schemaVersion,
@@ -58,6 +59,7 @@ func (s *Store) Save(st model.State) error {
 	return nil
 }
 
+// Load reads the backup.
 func (s *Store) Load() (model.State, error) {
 	data, err := os.ReadFile(s.path)
 	if errors.Is(err, fs.ErrNotExist) {
