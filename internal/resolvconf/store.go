@@ -19,6 +19,8 @@ func NewStore(path string) *Store {
 	}
 }
 
+// Read returns the current content of resolv.conf. A missing file is not an error:
+// it returns an empty File, because this is the normal state after a system disk failure.
 func (s *Store) Read() (*File, error) {
 	data, err := os.ReadFile(s.path)
 
@@ -31,6 +33,9 @@ func (s *Store) Read() (*File, error) {
 	}
 	return Parse(data), nil
 }
+
+// Write atomically replaces resolv.conf with the content of f.
+// It creates the parent directory if needed (for example on a freshly replaced disk).
 
 func (s *Store) Write(f *File) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {

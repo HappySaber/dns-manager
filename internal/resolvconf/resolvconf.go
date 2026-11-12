@@ -15,7 +15,10 @@ type File struct {
 	lines []line
 }
 
-// Parse raws if cant parse, than save raw as it was
+// Parse splits data into lines and recognizes valid "nameserver <ip>" entries.
+// It never fails: unknown or malformed lines (including "nameserver abc") are kept
+// as plain text, because resolv.conf is written by many tools and we must not
+// crash or drop content because of a line we do not understand.
 func Parse(data []byte) *File {
 	f := &File{}
 	text := strings.TrimRight(string(data), "\r\n")
@@ -56,7 +59,9 @@ func (f *File) Nameservers() []netip.Addr {
 	return res
 }
 
-// SetNameservers replace all nameservers raws
+// SetNameservers replaces all nameserver lines with addrs. The new block takes the
+// place of the first old nameserver line; if there was none, it is appended to the end.
+// Other lines are not touched.
 func (f *File) SetNameservers(adrrs []netip.Addr) {
 	out := make([]line, 0, len(f.lines)+len(adrrs))
 	placed := false
@@ -84,6 +89,8 @@ func appendNS(dst []line, addrs []netip.Addr) []line {
 	return dst
 }
 
+// Render serializes the file back to bytes. Every line ends with "\n",
+// and an empty file produces empty output.
 func (f *File) Render() []byte {
 	if len(f.lines) == 0 {
 		return nil
