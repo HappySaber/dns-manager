@@ -1,0 +1,8 @@
+node_id: "node-b"                 
+listen_addr: "127.0.0.1:50052"    
+peer_addr: "127.0.0.1:50051"     
+resolv_conf_path: "./tmp/b/resolv.conf"   
+backup_dir: "./tmp/b/backup"              
+sync_interval: "5s"
+replication_timeout: "2s"
+watch_debounce: "100ms"
