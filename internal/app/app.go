@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 
 	dnsv1 "dnsmanager/gen/dns-manager"
+	"dnsmanager/internal/cluster"
 	"dnsmanager/internal/config"
 	"dnsmanager/internal/resolvconf"
 	"dnsmanager/internal/server"
@@ -26,9 +27,21 @@ type App struct {
 	svc             *service.Service
 	watcher         *watcher.Watcher
 	shutdownTimeout time.Duration
+	peer            *cluster.Peer
+	syncInterval    time.Duration
 }
 
 func New(cfg config.Config, log *slog.Logger) (*App, error) {
+	var peer *cluster.Peer
+	var svcOpts []service.Option
+	if cfg.PeerAddr != "" {
+		p, err := cluster.NewPeer(cfg.PeerAddr)
+		if err != nil {
+			return nil, err
+		}
+		peer = p
+		svcOpts = append(svcOpts, service.WithCluster(cfg.NodeID, p, cfg.ReplicationTimeout))
+	}
 	bk, err := storage.New(cfg.BackupDir)
 	if err != nil {
 		return nil, fmt.Errorf("init backup storage: %w", err)
@@ -39,10 +52,13 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 	}
 
 	rc := resolvconf.NewStore(cfg.ResolvConfPath)
-	svc := service.New(rc, bk, log)
+	svc := service.New(rc, bk, log, svcOpts...)
 	wtchr := watcher.New(cfg.ResolvConfPath, cfg.WatchDebounce, log)
 	grpcServer := grpc.NewServer()
 	dnsv1.RegisterDNSServiceServer(grpcServer, server.New(svc, log))
+	if peer != nil {
+		dnsv1.RegisterClusterServiceServer(grpcServer, cluster.NewServer(svc, log))
+	}
 
 	return &App{
 		log:             log,
@@ -57,14 +73,24 @@ func New(cfg config.Config, log *slog.Logger) (*App, error) {
 func (a *App) Addr() net.Addr { return a.lis.Addr() }
 
 func (a *App) Run(ctx context.Context) error {
+	if a.peer != nil {
+		defer a.peer.Close()
+	}
 	if err := a.svc.Restore(ctx); err != nil {
 		a.log.Warn("restore failed, continuing without it", "err", err)
 	}
+	a.svc.Reconcile(ctx) // подтянуть более новое состояние с пира до приёма запросов
 	a.svc.Sync(ctx)
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return a.watcher.Run(ctx, a.svc.Sync) })
 	g.Go(func() error { return a.serve(ctx) })
+	if a.peer != nil {
+		g.Go(func() error {
+			cluster.RunLoop(ctx, a.syncInterval, a.svc.Reconcile)
+			return nil
+		})
+	}
 	return g.Wait()
 }
 
