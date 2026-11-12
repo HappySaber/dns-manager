@@ -35,8 +35,7 @@ func (s *Store) Read() (*File, error) {
 }
 
 // Write atomically replaces resolv.conf with the content of f.
-// It creates the parent directory if needed (for example on a freshly replaced disk).
-
+// It creates the parent directory if needed.
 func (s *Store) Write(f *File) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return fmt.Errorf("create dir for %s: %w", s.path, err)
